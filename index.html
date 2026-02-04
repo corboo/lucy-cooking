@@ -179,7 +179,11 @@
             <button class="btn-primary" id="startBtn">🎙️ Start Cooking Session</button>
             <button class="btn-danger hidden" id="endBtn">⏹️ End Session</button>
             <button class="btn-secondary hidden" id="muteBtn">🔇 Mute Mic</button>
+            <button class="btn-secondary hidden" id="cameraBtn">📷 Enable Camera</button>
         </div>
+        
+        <!-- Hidden camera for expression analysis -->
+        <video id="userCamera" style="display:none;" autoplay playsinline muted></video>
 
         <div class="main-content">
             <div class="panel">
@@ -226,6 +230,8 @@
         let micRecorder = null;
         let isMuted = false;
         let isSimliConnected = false;
+        let userCameraStream = null;
+        let expressionInterval = null;
 
         // ========== DOM Elements ==========
         const startBtn = document.getElementById('startBtn');
@@ -238,6 +244,8 @@
         const simliVideo = document.getElementById('simliVideo');
         const simliAudio = document.getElementById('simliAudio');
         const avatarPlaceholder = document.getElementById('avatarPlaceholder');
+        const cameraBtn = document.getElementById('cameraBtn');
+        const userCamera = document.getElementById('userCamera');
 
         // ========== Utilities ==========
         function setLucyStatus(status, text) {
@@ -355,8 +363,9 @@
                 startBtn.classList.add('hidden');
                 endBtn.classList.remove('hidden');
                 muteBtn.classList.remove('hidden');
+                cameraBtn.classList.remove('hidden');
                 startMicCapture(micStream);
-                addMessage('lucy', "Hi! I'm Lucy, your AI cooking companion. What delicious dish are we making today?");
+                addMessage('lucy', "Hi! I'm Lucy, your AI cooking companion. What delicious dish are we making today? Enable your camera so I can see what you're working with!");
             };
             
             humeSocket.onmessage = (event) => {
@@ -435,6 +444,43 @@
             micRecorder.start(100);
         }
 
+        // ========== Camera & Expression Analysis (Hidden) ==========
+        async function enableCamera() {
+            try {
+                userCameraStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'user', width: 320, height: 240 } 
+                });
+                userCamera.srcObject = userCameraStream;
+                cameraBtn.textContent = '📷 Camera On';
+                cameraBtn.classList.add('active');
+                addMessage('system', 'Camera enabled - Lucy can see your expressions');
+            } catch (e) {
+                addMessage('system', 'Could not access camera');
+            }
+        }
+        
+        function disableCamera() {
+            if (userCameraStream) {
+                userCameraStream.getTracks().forEach(t => t.stop());
+                userCameraStream = null;
+            }
+            if (expressionInterval) {
+                clearInterval(expressionInterval);
+                expressionInterval = null;
+            }
+            userCamera.srcObject = null;
+            cameraBtn.textContent = '📷 Enable Camera';
+            cameraBtn.classList.remove('active');
+        }
+        
+        cameraBtn.onclick = () => {
+            if (userCameraStream) {
+                disableCamera();
+            } else {
+                enableCamera();
+            }
+        };
+
         // ========== Main Controls ==========
         startBtn.onclick = async () => {
             try {
@@ -478,9 +524,12 @@
             micRecorder = null;
             isSimliConnected = false;
             
+            disableCamera();
+            
             startBtn.classList.remove('hidden');
             endBtn.classList.add('hidden');
             muteBtn.classList.add('hidden');
+            cameraBtn.classList.add('hidden');
             
             simliVideo.style.display = 'none';
             avatarPlaceholder.style.display = 'flex';
