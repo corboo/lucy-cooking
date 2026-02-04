@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lucy - AI Cooking Companion</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #2d1b4e 0%, #1a1a3e 50%, #0f2027 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            color: #fff;
+        }
+        .container { max-width: 900px; width: 100%; }
+        header { text-align: center; margin-bottom: 15px; }
+        h1 { font-size: 2rem; color: #E879F9; margin-bottom: 5px; }
+        .subtitle { color: #888; font-size: 0.9rem; }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 0.95rem;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 600;
+        }
+        .btn-primary { background: #E879F9; color: white; }
+        .btn-primary:hover { background: #D946EF; transform: translateY(-2px); }
+        .btn-primary:disabled { background: #555; cursor: not-allowed; transform: none; }
+        .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; border: 2px solid rgba(255,255,255,0.3); }
+        .btn-secondary:hover { background: rgba(255,255,255,0.2); }
+        .btn-secondary.active { background: rgba(232,121,249,0.3); border-color: #E879F9; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #c82333; }
+        .hidden { display: none !important; }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        @media (max-width: 600px) {
+            .main-content { grid-template-columns: 1fr; }
+        }
+        
+        .panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 15px;
+        }
+        
+        .panel h3 {
+            color: #E879F9;
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+        }
+        
+        .avatar-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1;
+            max-width: 300px;
+            margin: 0 auto;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #111;
+        }
+        
+        #simliVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 12px;
+        }
+        
+        .avatar-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #4a1d6a 0%, #2d1b4e 100%);
+            border-radius: 12px;
+            font-size: 4rem;
+        }
+        
+        .status-overlay {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 6px 16px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+        }
+        
+        .avatar-status {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: #888;
+        }
+        .avatar-status.speaking { color: #E879F9; }
+        .avatar-status.thinking { color: #ffc107; }
+        .avatar-status.listening { color: #28a745; }
+        
+        .transcript {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .message {
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+        }
+        .message.user { background: rgba(59,130,246,0.2); margin-left: 15%; }
+        .message.lucy { background: rgba(232,121,249,0.2); margin-right: 15%; }
+        .message.system { background: rgba(255,255,255,0.1); font-style: italic; font-size: 0.8rem; text-align: center; }
+        .message .label { font-size: 0.7rem; color: #888; margin-bottom: 3px; }
+        
+        footer {
+            text-align: center;
+            color: #555;
+            font-size: 0.75rem;
+            margin-top: 15px;
+        }
+        
+        .connection-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            background: rgba(255,255,255,0.1);
+            margin-left: 10px;
+        }
+        .connection-status .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #888;
+        }
+        .connection-status.connected .dot { background: #28a745; }
+        .connection-status.connecting .dot { background: #ffc107; animation: pulse 1s infinite; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>👩‍🍳 Lucy</h1>
+            <p class="subtitle">AI cooking companion with real-time avatar (Simli)</p>
+        </header>
+
+        <div class="controls">
+            <button class="btn-primary" id="startBtn">🎙️ Start Cooking Session</button>
+            <button class="btn-danger hidden" id="endBtn">⏹️ End Session</button>
+            <button class="btn-secondary hidden" id="muteBtn">🔇 Mute Mic</button>
+        </div>
+
+        <div class="main-content">
+            <div class="panel">
+                <h3>👩‍🍳 Lucy
+                    <span class="connection-status" id="connectionStatus">
+                        <span class="dot"></span>
+                        <span id="connectionText">Offline</span>
+                    </span>
+                </h3>
+                <div class="avatar-container">
+                    <div class="avatar-placeholder" id="avatarPlaceholder">👩‍🍳</div>
+                    <video id="simliVideo" autoplay playsinline style="display:none;"></video>
+                    <audio id="simliAudio" autoplay style="display:none;"></audio>
+                </div>
+                <div class="avatar-status" id="lucyStatus">Click Start to begin!</div>
+            </div>
+
+            <div class="panel">
+                <h3>💬 Conversation</h3>
+                <div class="transcript" id="messages"></div>
+            </div>
+        </div>
+
+        <footer>
+            Powered by Hume AI + Simli | Real-time Avatar | Inception Point AI
+        </footer>
+    </div>
+
+    <!-- Simli Client from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/simli-client@latest/dist/SimliClient.umd.js"></script>
+    
+    <script>
+        // ========== Configuration ==========
+        const CONFIG = {
+            HUME_API_KEY: 'Qpo16RO78hsfKE37KnJM7mlXBp1pnGaXVUQ0x36nNIbmgjUp',
+            HUME_CONFIG_ID: '5e4ab7a7-c3e8-4539-b2a3-c3cdfe69ecf4',
+            SIMLI_API_KEY: '1ta3xgw1wps8jm35okpl4h',
+            // Default female face - can be changed to custom Lucy face from app.simli.com
+            SIMLI_FACE_ID: 'tmp9i8bbq7c'
+        };
+
+        // ========== State ==========
+        let humeSocket = null;
+        let simliClient = null;
+        let micRecorder = null;
+        let isMuted = false;
+        let isSimliConnected = false;
+
+        // ========== DOM Elements ==========
+        const startBtn = document.getElementById('startBtn');
+        const endBtn = document.getElementById('endBtn');
+        const muteBtn = document.getElementById('muteBtn');
+        const messagesEl = document.getElementById('messages');
+        const lucyStatus = document.getElementById('lucyStatus');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const connectionText = document.getElementById('connectionText');
+        const simliVideo = document.getElementById('simliVideo');
+        const simliAudio = document.getElementById('simliAudio');
+        const avatarPlaceholder = document.getElementById('avatarPlaceholder');
+
+        // ========== Utilities ==========
+        function setLucyStatus(status, text) {
+            lucyStatus.className = 'avatar-status ' + status;
+            lucyStatus.textContent = text;
+        }
+        
+        function setConnectionStatus(status, text) {
+            connectionStatus.className = 'connection-status ' + status;
+            connectionText.textContent = text;
+        }
+
+        function addMessage(role, text) {
+            const div = document.createElement('div');
+            div.className = 'message ' + role;
+            if (role !== 'system') {
+                const label = document.createElement('div');
+                label.className = 'label';
+                label.textContent = role === 'user' ? 'You' : 'Lucy';
+                div.appendChild(label);
+            }
+            const content = document.createElement('div');
+            content.textContent = text;
+            div.appendChild(content);
+            messagesEl.appendChild(div);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        // ========== Simli Setup ==========
+        async function initSimli() {
+            setConnectionStatus('connecting', 'Connecting...');
+            
+            // Check if SimliClient is available
+            if (typeof SimliClient === 'undefined') {
+                console.error('SimliClient not loaded');
+                addMessage('system', 'Error: Simli SDK not loaded');
+                return false;
+            }
+            
+            try {
+                simliClient = new SimliClient();
+                
+                const config = {
+                    apiKey: CONFIG.SIMLI_API_KEY,
+                    faceID: CONFIG.SIMLI_FACE_ID,
+                    handleSilence: true,
+                    maxSessionLength: 3600,
+                    maxIdleTime: 600,
+                    videoRef: simliVideo,
+                    audioRef: simliAudio,
+                    enableConsoleLogs: true
+                };
+                
+                simliClient.Initialize(config);
+                
+                // Set up event listeners
+                simliClient.on('connected', () => {
+                    console.log('Simli connected!');
+                    isSimliConnected = true;
+                    setConnectionStatus('connected', 'Connected');
+                    avatarPlaceholder.style.display = 'none';
+                    simliVideo.style.display = 'block';
+                });
+                
+                simliClient.on('disconnected', () => {
+                    console.log('Simli disconnected');
+                    isSimliConnected = false;
+                    setConnectionStatus('', 'Disconnected');
+                });
+                
+                simliClient.on('failed', () => {
+                    console.log('Simli connection failed');
+                    addMessage('system', 'Avatar connection failed');
+                    setConnectionStatus('', 'Failed');
+                });
+                
+                simliClient.on('speaking', () => {
+                    setLucyStatus('speaking', '🗣️ Speaking...');
+                });
+                
+                simliClient.on('silent', () => {
+                    setLucyStatus('listening', '🎤 Listening...');
+                });
+                
+                // Start the connection
+                await simliClient.start();
+                
+                return true;
+            } catch (e) {
+                console.error('Simli init error:', e);
+                addMessage('system', 'Error initializing avatar: ' + e.message);
+                return false;
+            }
+        }
+
+        // ========== Hume EVI (Voice Chat) ==========
+        async function startHumeEVI() {
+            setLucyStatus('thinking', 'Connecting...');
+            
+            const micStream = await navigator.mediaDevices.getUserMedia({ 
+                audio: { 
+                    sampleRate: 16000, 
+                    channelCount: 1, 
+                    echoCancellation: true, 
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            });
+            
+            const wsUrl = `wss://api.hume.ai/v0/evi/chat?api_key=${CONFIG.HUME_API_KEY}&config_id=${CONFIG.HUME_CONFIG_ID}`;
+            humeSocket = new WebSocket(wsUrl);
+            
+            humeSocket.onopen = () => {
+                setLucyStatus('listening', '🎤 Listening...');
+                startBtn.classList.add('hidden');
+                endBtn.classList.remove('hidden');
+                muteBtn.classList.remove('hidden');
+                startMicCapture(micStream);
+                addMessage('lucy', "Hi! I'm Lucy, your AI cooking companion. What delicious dish are we making today?");
+            };
+            
+            humeSocket.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                handleHumeMessage(msg);
+            };
+            
+            humeSocket.onerror = (error) => {
+                console.error('Hume EVI error:', error);
+                setLucyStatus('', 'Connection error');
+            };
+            
+            humeSocket.onclose = () => cleanup();
+        }
+        
+        function handleHumeMessage(msg) {
+            switch (msg.type) {
+                case 'user_message':
+                    if (msg.message?.content) {
+                        addMessage('user', msg.message.content);
+                    }
+                    break;
+                    
+                case 'assistant_message':
+                    if (msg.message?.content) {
+                        addMessage('lucy', msg.message.content);
+                    }
+                    break;
+                    
+                case 'audio_output':
+                    // Send audio to Simli for lip-sync
+                    if (isSimliConnected && simliClient) {
+                        sendAudioToSimli(msg.data);
+                    }
+                    break;
+            }
+        }
+        
+        // Convert base64 audio to PCM16 and send to Simli
+        function sendAudioToSimli(base64Audio) {
+            try {
+                // Decode base64 to binary
+                const binaryString = atob(base64Audio);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                
+                // Simli expects PCM16 at 16kHz
+                // Hume sends PCM audio - we need to verify the format
+                // For now, send directly and see if it works
+                simliClient.sendAudioData(bytes);
+                
+            } catch (e) {
+                console.error('Error sending audio to Simli:', e);
+            }
+        }
+        
+        function startMicCapture(stream) {
+            const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+                ? 'audio/webm;codecs=opus' : 'audio/webm';
+            
+            micRecorder = new MediaRecorder(stream, { mimeType });
+            
+            micRecorder.ondataavailable = async (event) => {
+                if (event.data.size > 0 && humeSocket?.readyState === WebSocket.OPEN && !isMuted) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const base64 = reader.result.split(',')[1];
+                        humeSocket.send(JSON.stringify({ type: 'audio_input', data: base64 }));
+                    };
+                    reader.readAsDataURL(event.data);
+                }
+            };
+            
+            micRecorder.start(100);
+        }
+
+        // ========== Main Controls ==========
+        startBtn.onclick = async () => {
+            try {
+                // Initialize Simli first
+                const simliOk = await initSimli();
+                if (!simliOk) {
+                    addMessage('system', 'Continuing without avatar...');
+                }
+                
+                // Start Hume voice
+                await startHumeEVI();
+            } catch (error) {
+                console.error('Start error:', error);
+                setLucyStatus('', 'Error: ' + error.message);
+            }
+        };
+        
+        endBtn.onclick = () => {
+            addMessage('lucy', "Thanks for cooking with me! Can't wait for our next recipe! 🍳");
+            cleanup();
+        };
+        
+        muteBtn.onclick = () => {
+            isMuted = !isMuted;
+            muteBtn.textContent = isMuted ? '🔊 Unmute' : '🔇 Mute Mic';
+            muteBtn.classList.toggle('active', isMuted);
+        };
+        
+        function cleanup() {
+            if (micRecorder?.state !== 'inactive') {
+                micRecorder?.stop();
+                micRecorder?.stream?.getTracks().forEach(t => t.stop());
+            }
+            if (humeSocket) humeSocket.close();
+            if (simliClient) {
+                simliClient.close();
+                simliClient = null;
+            }
+            
+            humeSocket = null;
+            micRecorder = null;
+            isSimliConnected = false;
+            
+            startBtn.classList.remove('hidden');
+            endBtn.classList.add('hidden');
+            muteBtn.classList.add('hidden');
+            
+            simliVideo.style.display = 'none';
+            avatarPlaceholder.style.display = 'flex';
+            
+            setLucyStatus('', 'Session ended');
+            setConnectionStatus('', 'Offline');
+        }
+    </script>
+</body>
+</html>
